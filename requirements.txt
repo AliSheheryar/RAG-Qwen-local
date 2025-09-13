@@ -5,4 +5,4 @@ langchain-openai
 python-docx
 pdfplumber
 faiss-cpu
-doc2text
+docx2text
