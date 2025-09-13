@@ -8,3 +8,4 @@ streamlit
 ollama
 beautifulsoup4
 lxml
+exa_py
