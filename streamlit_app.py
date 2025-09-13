@@ -2,6 +2,11 @@ import streamlit as st
 from langchain_openai.chat_models import ChatOpenAI
 import docx2txt
 import pdfplumber
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_openai import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
+from langchain.chains import ConversationalRetrievalChain
+from langchain.memory import ConversationBufferMemory
 
 st.title("🦜🔗 Quickstart App")
 
@@ -56,3 +61,53 @@ with st.form("my_form"):
             document_content = get_document_content(uploaded_file)
         
         generate_response(text, document_content)
+
+st.header("Chat with your Document")
+
+uploaded_chat_file = st.file_uploader("Upload a document to chat with", type=["txt", "pdf", "docx"])
+
+if uploaded_chat_file:
+    if not openai_api_key.startswith("sk-"):
+        st.warning("Please enter your OpenAI API key to process the document!", icon="⚠")
+    else:
+        if st.button("Process Document"):
+            with st.spinner("Processing..."):
+                doc_content = get_document_content(uploaded_chat_file)
+                if "Error" in doc_content or "Unsupported" in doc_content:
+                    st.error(doc_content)
+                else:
+                    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+                    texts = text_splitter.split_text(doc_content)
+                    embeddings = OpenAIEmbeddings(api_key=openai_api_key)
+                    st.session_state.vectorstore = FAISS.from_texts(texts, embedding=embeddings)
+                    st.session_state.messages = []
+                    st.session_state.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+                    st.success("Document processed! You can now chat.")
+
+if "vectorstore" in st.session_state:
+    for message in st.session_state.get("messages", []):
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    if prompt := st.chat_input("Ask a question about the document"):
+        if not openai_api_key.startswith("sk-"):
+            st.warning("Please enter your OpenAI API key to chat!", icon="⚠")
+        else:
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
+            llm = ChatOpenAI(temperature=0.7, api_key=openai_api_key)
+            qa_chain = ConversationalRetrievalChain.from_llm(
+                llm,
+                st.session_state.vectorstore.as_retriever(),
+                memory=st.session_state.memory
+            )
+
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    result = qa_chain({"question": prompt})
+                    response = result["answer"]
+                    st.markdown(response)
+
+            st.session_state.messages.append({"role": "assistant", "content": response})
