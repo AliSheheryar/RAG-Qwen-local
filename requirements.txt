@@ -1,11 +1,3 @@
-agno
-pypdf
-exa
-qdrant-client
-langchain-qdrant
-langchain-community
 streamlit
-ollama
-beautifulsoup4
-lxml
-exa_py
+openai
+langchain
